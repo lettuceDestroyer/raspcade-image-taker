@@ -1,13 +1,12 @@
 import datetime
 import os
 import sys
-from typing import Any
-import cv2
-import numpy
 import pygame
+import pygame.camera
 import pygame_gui as gui
 
 pygame.init()
+pygame.camera.init()
 pygame.display.set_caption("image_taker")
 
 # Constants
@@ -15,19 +14,17 @@ HEIGHT = 1000
 WIDTH = 800
 DISPLAY = pygame.display.set_mode([WIDTH, HEIGHT])
 UI_MANAGER = gui.UIManager((WIDTH, HEIGHT))
-CAMERA = cv2.VideoCapture(0)
 BACKGROUND = pygame.Surface((WIDTH, HEIGHT))
 CLOCK = pygame.time.Clock()
 
 # Variables
 should_save_images = False
-image: cv2.Mat | numpy.ndarray[Any, numpy.dtype]
 label: str
 
 # todo: write cleaner code. Preferably using a class that sets these vales on init or start btn press
 label = "label"
-image = CAMERA.read()[1]
-IMAGE_HEIGHT, IMAGE_WIDTH, _ = image.shape
+IMAGE_HEIGHT = 480
+IMAGE_WIDTH = 640
 
 # GUI Elements
 file_dialog: None | gui.windows.UIFileDialog
@@ -54,12 +51,17 @@ def main():
     image_folder_path = ""
     stop_btn.disable()
 
+    camera_list = pygame.camera.list_cameras()
+    if not camera_list:
+        raise ValueError("Sorry, no cameras detected.")
+    camera = pygame.camera.Camera(camera_list[0])
+    camera.start()
+
     while True:
         time_delta = CLOCK.tick(60) / 1000.0
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                CAMERA.release()
-                cv2.destroyAllWindows()
+                pygame.camera.quit()
                 pygame.quit()
                 sys.exit()
 
@@ -87,9 +89,9 @@ def main():
 
         UI_MANAGER.update(time_delta)
 
-        image = CAMERA.read()[1]
-        thickness = 2
-        image_height, image_width, _ = image.shape
+        image = camera.get_image()
+        image_height = image.get_height()
+        image_width = image.get_width()
 
         number_of_horizontal_spaces = 5
         number_of_vertical_spaces = 0
@@ -104,25 +106,18 @@ def main():
             now = now.replace(":", "_")
             now = now.replace(".", "_")
             filename = str(os.path.join(image_folder_path, f"{now}.png"))
-            cv2.imwrite(filename, image)
+            pygame.image.save(image, filename)
 
         for i in range(1, number_of_horizontal_spaces):
-            image = cv2.line(image, (0, round(image_height / number_of_horizontal_spaces * i)),
-                             (image_width, round(image_height / number_of_horizontal_spaces * i)),
-                             pygame.Color("blue"),
-                             thickness)
+            pygame.draw.line(image, pygame.Color("red"), (0, round(image_height / number_of_horizontal_spaces * i)),
+                             (image_width, round(image_height / number_of_horizontal_spaces * i)))
 
         for i in range(1, number_of_vertical_spaces):
-            image = cv2.line(image, (round(image_width / number_of_vertical_spaces * i), 0),
-                             (round(image_width / number_of_vertical_spaces * i), image_height),
-                             pygame.Color("blue"),
-                             thickness)
+            pygame.draw.line(image, pygame.Color("red"), (round(image_width / number_of_vertical_spaces * i), 0),
+                             (round(image_width / number_of_vertical_spaces * i), image_height))
 
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
-        image_as_surface = pygame.surfarray.make_surface(image)
         DISPLAY.blit(BACKGROUND, (0, 0))
-        DISPLAY.blit(image_as_surface, ((WIDTH - IMAGE_WIDTH) / 2, 10))
+        DISPLAY.blit(image, ((WIDTH - IMAGE_WIDTH) / 2, 10))
         UI_MANAGER.draw_ui(DISPLAY)
 
         pygame.display.update()

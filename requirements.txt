@@ -1,4 +1,2 @@
 pygame-ce
 pygame_gui
-opencv-python
-numpy
